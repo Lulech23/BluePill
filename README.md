@@ -36,17 +36,12 @@ If you're using an IndieGoGo edition Aya Neo, setup is simple!
 Note that changes made by BluePill are permanent until uninstalled, so you do not need to keep downloaded files on your PC after installation.
 
 ## Advanced Usage
-If you're using a different edition Aya Neo or other device entirely, your default display calibration may be substantially different from the one BluePill was designed to fix. But if you have an \*.ICC profile, you can convert it to base64 and package the contents inside BluePill yourself:
+If you're using a different edition Aya Neo or other device entirely, your default display calibration may be substantially different from the one BluePill was designed to fix. But if you have an \*.ICC or \*.ICM profile, you can apply it with BluePill as well!
 
-#### To Convert:
-1. Locate your \*.ICC calibration profile. If you created one yourself, it'll be located at `%WinDir%\System32\spool\drivers\Color`.
-2. Open PowerShell and execute the following command: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\Path\to\my\file.icc"))`, replacing the path with your profile.
-
-#### To Package:
-1. Edit `BluePill.bat` in your text editor of choice and locate the line `$icc =`
-2. Copy the output of the previous PowerShell command and paste to replace the value of `$icc`. Value **must** be input as a string, so make sure to enclose the value in quotes!
-
-Save your changes to `BluePill.bat` and you're ready to easily deploy your color profile to as many PC's as you want!
+#### To Install Custom Profile:
+1. Open PowerShell or CMD and navigate to the directory where `BluePill.bat` is stored
+2. Enter `BluePill.bat` followed by the **fully qualified** path to your custom profile (no relative paths). _Example:_ `.\BluePill.bat "C:\Users\Me\Downloads\MyCustomProfile.icc"`
+3. Run the command to apply your custom profile
 
 ## Known Issues
 * **None for now! Hooray!**
