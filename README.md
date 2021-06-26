@@ -1,4 +1,4 @@
-# 💻 BluePill (Color Calibration Fixer)
+# 💻 BluePill (Color Calibration Applicator)
 Ditch green tint on the default Aya Neo display configuration!
 
 ## About
@@ -6,12 +6,12 @@ The Aya Neo is an amazing handheld PC, but early units shipped with a default di
 
 BluePill is a PowerShell script designed to automate applying a better color profile, which I calibrated myself. Achieving true white balance is probably impossible on the current-gen Neo panel, but I was able to reach a pleasing compromise, at the very least. 
 
-Proper calibration is not simple, requires lots of time, and the tools are somewhat hidden beneath a tree of outdated Windows settings screens. That's a hurdle for end users, so take the BluePill instead.
+Proper calibration is not simple, requires lots of time, and the tools are somewhat hidden beneath a tree of outdated Windows settings screens. That's a hurdle for end users, so take the BluePill instead!
 
 #### You could go from this...
 ![`Original color profile (simulated)`](/screenshots/original.jpg)
 
-#### .. To this!
+#### ... To this!
 ![`BluePill color profile (simulated)`](/screenshots/bluepill.jpg)
 
 ### Why BluePill?
