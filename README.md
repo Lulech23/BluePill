@@ -2,7 +2,7 @@
 Ditch green tint on the default Aya Neo display configuration!
 
 ## About
-The Aya Neo is an amazing handheld PC, but early units shipped with a default display calibration that leaves much to be desired. Like its namesake movie, it possesses a strong green tint out of the box. That's fine for moody action films, not so great for an entire user experience.
+The Aya Neo is an amazing handheld PC, but early units shipped with a default display calibration that leaves much to be desired. Like its namesake movie, it possesses a strong green tint out of the box. That's fine for moody action films, not so great for an entire user experience. We need more blue!
 
 BluePill is a PowerShell script designed to automate applying a better color profile, which I calibrated myself. Achieving true white balance is probably impossible on the current-gen Neo panel, but I was able to reach a pleasing compromise, at the very least. 
 
