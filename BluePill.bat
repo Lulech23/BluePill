@@ -5,11 +5,11 @@ powershell.exe "Get-ExecutionPolicy -Scope 'CurrentUser' | Out-File -FilePath '%
 //  BluePill by Lulech23  //
 ////////////////////////////
 
-Ditch green tint on the default Aya Neo display configuration!
+Ditch green tint on the default Aya Neo display calibration, and apply custom profiles with ease!
 
 What's New:
-* Added support for custom profiles via command-line argument
-* Slightly decreased gamma for taste
+* Replaced driver reset method with native calibration loader--more reliable, and zero screen flash!
+* Added step-by-step setup info to console output
 
 Notes:
 * 
@@ -24,7 +24,7 @@ INITIALIZATION
 #>
 
 # Version... obviously
-$version = "1.1"
+$version = "1.2"
 
 # Profile path
 $profile = "AyaNeo.icc"
@@ -32,6 +32,10 @@ if ($args.count -gt 0) {
     $profile = (Get-Item $args[0]).Name
 }
 $path = "$env:WinDir\System32\spool\drivers\color\$profile"
+
+# Step count
+$steps = 0
+$step  = 0
 
 
 <#
@@ -45,8 +49,15 @@ Write-Host "`n                             " -BackgroundColor Green
 
 # About
 Write-Host "`nThis script will replace the current display calibration with a custom profile,"
-Write-Host "fine-tuned for the Aya Neo (IGG Edition). Profile may not be applicable to other"
-Write-Host "devices or other editions of the Aya Neo."
+if ($args.count -gt 0) {
+    # Custom profile
+    Write-Host "imported from an external *.ICC/*.ICM file. External profiles are not guaranteed"
+    Write-Host "to be applicable to the current device."
+} else {
+    # Built-in profile
+    Write-Host "fine-tuned for the Aya Neo (IGG Edition). Profile may not be applicable to other"
+    Write-Host "devices or other editions of the Aya Neo."
+}
 Write-Host "`nTo undo changes and restore the original calibration, run this script again later."
 
 # Current OSK
@@ -118,46 +129,59 @@ if ($task.contains("Install")) {
 
     # Ensure export succeeded
     if (Test-Path -Path "$path") {
-        Write-Host "`nUpdating system config (this may take a while)..."
+        Write-Host "`nUpdating system config (this may take a while)...`n"
+
+        # Set starting step count
+        $steps = 2
 
         # Delete user calibration to enable system calibration, if any
         $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" 2>$null)
         if ($regpath.length -gt 0) {
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" /f
         }
 
         # Associate calibration profile with display
         $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations\Display") -match "HKEY_CURRENT_USER"
+        $steps += ($regpath.count*7)
         for ($r = 0; $r -lt $regpath.count; $r++) {
             $reg = $regpath[$r]
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg add "$reg\0007" /t REG_DWORD /v "UsePerUserProfiles" /d 1 /f
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfile" /d "$profile" /f
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfileAC" /d "$profile" /f
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg delete "$reg\0007" /v "ICMProfileSnapshot" /f
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfileSnapshot" /f
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg delete "$reg\0007" /v "ICMProfileSnapshotAC" /f
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfileSnapshotAC" /f
         }
 
         # Enable calibration profile
         $regpath = (reg query "HKLM\SYSTEM\ControlSet001\Control\Class" /f "ICMProfile" /s /c /e) -match "HKEY_LOCAL_MACHINE"
         $regpath += (reg query "HKLM\SYSTEM\CurrentControlSet\Control\Class" /f "ICMProfile" /s /c /e) -match "HKEY_LOCAL_MACHINE"
+        $steps += $regpath.count
         for ($r = 0; $r -lt $regpath.count; $r++) {
             $reg = $regpath[$r]
+            $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
             reg add "$reg" /t REG_MULTI_SZ /v "ICMProfile" /d "$profile" /f
         }
 
         # Enable calibration management
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\Calibration" /t REG_DWORD /v "CalibrationManagementEnabled" /d 1 /f
 
         # Register calibration profile
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" /t REG_SZ /v "sRGB" /d "$profile" /f
         
         # Restart graphics driver to apply changes
-        $gpu = Get-PnpDevice | where { $_.class -like "Display*" }
-        $gpu | Disable-PnpDevice -Confirm:$false
-        Start-Sleep -Seconds 1
-        $gpu | Enable-PnpDevice -Confirm:$false
+        Start-ScheduledTask -TaskName "\Microsoft\Windows\WindowsColorSystem\Calibration Loader"
         
         # End process, we're done!
         Write-Host "`nProcess complete! " -NoNewline -ForegroundColor Green
@@ -180,50 +204,66 @@ REVERT ORIGINAL PROFILE
 #>
 
 if ($task.contains("Revert")) {
-    Write-Host "`nReverting display calibration (this may take a while)..."
+    Write-Host "`nReverting display calibration (this may take a while)...`n"
     Start-Sleep -Seconds 1
+
+    # Set starting step count
+    $steps = 2
 
     # Delete user calibration to restore system calibration, if any
     $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" 2>$null)
     if ($regpath.length -gt 0) {
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" /f
     }
 
     # Disassociate calibration profile from display
     $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations\Display") -match "HKEY_CURRENT_USER"
+    $steps += ($regpath.count*9)
     for ($r = 0; $r -lt $regpath.count; $r++) {
         $reg = $regpath[$r]
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "$reg\0007" /t REG_DWORD /v "UsePerUserProfiles" /d 0 /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg delete "$reg\0007" /v "ICMProfile" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfile" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg delete "$reg\0007" /v "ICMProfileAC" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfileAC" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg delete "$reg\0007" /v "ICMProfileSnapshot" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfileSnapshot" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg delete "$reg\0007" /v "ICMProfileSnapshotAC" /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "$reg\0007" /t REG_MULTI_SZ /v "ICMProfileSnapshotAC" /f
     }
 
     # Disable calibration profile
     $regpath = (reg query "HKLM\SYSTEM\ControlSet001\Control\Class" /f "ICMProfile" /s /c /e) -match "HKEY_LOCAL_MACHINE"
     $regpath += (reg query "HKLM\SYSTEM\CurrentControlSet\Control\Class" /f "ICMProfile" /s /c /e) -match "HKEY_LOCAL_MACHINE"
+    $steps += ($regpath.count*2)
     for ($r = 0; $r -lt $regpath.count; $r++) {
         $reg = $regpath[$r]
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg delete "$reg" /v ICMProfile /f
+        $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
         reg add "$reg" /t REG_MULTI_SZ /v "ICMProfile" /f
     }
     
     # Disable calibration management
+    $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
     reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\Calibration" /t REG_DWORD /v "CalibrationManagementEnabled" /d 0 /f
 
     # Unregister calibration profile
+    $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
     reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" /v "sRGB" /f
     
     # Restart graphics driver to apply changes
-    $gpu = Get-PnpDevice | where { $_.class -like "Display*" }
-    $gpu | Disable-PnpDevice -Confirm:$false
-    Start-Sleep -Seconds 1
-    $gpu | Enable-PnpDevice -Confirm:$false
+    Start-ScheduledTask -TaskName "\Microsoft\Windows\WindowsColorSystem\Calibration Loader"
 
     # If profile exists...
     if (Test-Path -Path "$path") {
