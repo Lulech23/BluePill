@@ -8,7 +8,8 @@ powershell.exe "Get-ExecutionPolicy -Scope 'CurrentUser' | Out-File -FilePath '%
 Ditch green tint on the default Aya Neo display calibration, and apply custom profiles with ease!
 
 What's New:
-* Added support for initializing new display calibration data if none exists (fixes errors on fresh Windows installations)
+* Fixed initialization failing to set defaults for some users
+* Some code cleanup
 
 Notes:
 * 
@@ -23,7 +24,7 @@ INITIALIZATION
 #>
 
 # Version... obviously
-$version = "1.3"
+$version = "1.4"
 
 # Profile path
 $profile = "AyaNeo.icc"
@@ -135,24 +136,25 @@ if ($task.contains("Install")) {
         Start-Sleep -Seconds 1
 
         # Delete existing user calibration, if any
+        wmic process where "name='colorcpl.exe'" delete | Out-Null
         $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations" 2>$null)
         if ($regpath.length -gt 0) {
-            reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations" /f 2>$null
+            reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations" /f 2>$null | Out-Null
         }
         $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" 2>$null)
         if ($regpath.length -gt 0) {
-            reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" /f 2>$null
+            reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\RegisteredProfiles" /f 2>$null | Out-Null
         }
 
         # Temporarily spawn color calibration control panel to generate defaults
-        Start-Process -WindowStyle Hidden "$env:WinDir\System32\colorcpl.exe"
+        Start-Process -WindowStyle Minimized "$env:WinDir\System32\colorcpl.exe"
         $ready = 0
         Do {
             Start-Sleep -Seconds 1
             $ready = (Get-Process "colorcpl" -ErrorAction SilentlyContinue).length
         } Until ($ready -ge 1)
-        Start-Sleep -Seconds 1
         wmic process where "name='colorcpl.exe'" delete | Out-Null
+        Start-Sleep -Seconds 1
         
         # If initialization succeeded...
         $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations\Display" 2>$null) -match "HKEY_CURRENT_USER"
@@ -165,10 +167,10 @@ if ($task.contains("Install")) {
             for ($i = 0; $i -lt $ids.count; $i++) {
                 $id = $ids[$i]
                 if ((reg query "HKLM\SYSTEM\ControlSet001\Control\Class\$guid\$id" 2>$null).length -eq 0) {
-                    reg add "HKLM\SYSTEM\ControlSet001\Control\Class\$guid\$id" /t REG_MULTI_SZ /v "ICMProfile" /f 2>$null
+                    reg add "HKLM\SYSTEM\ControlSet001\Control\Class\$guid\$id" /t REG_MULTI_SZ /v "ICMProfile" /f 2>$null | Out-Null
                 }
                 if ((reg query "HKLM\SYSTEM\CurrentControlSet\Control\Class\$guid\$id" 2>$null).length -eq 0) {
-                    reg add "HKLM\SYSTEM\CurrentControlSet\Control\Class\$guid\$id" /t REG_MULTI_SZ /v "ICMProfile" /f 2>$null
+                    reg add "HKLM\SYSTEM\CurrentControlSet\Control\Class\$guid\$id" /t REG_MULTI_SZ /v "ICMProfile" /f 2>$null | Out-Null
                 }
             }
 
@@ -270,7 +272,7 @@ if ($task.contains("Revert")) {
     $regpath = (reg query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations" 2>$null)
     if ($regpath.length -gt 0) {
         $steps++; $step++; Write-Host "($step/$steps) " -NoNewline -ForegroundColor Cyan 
-        reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations" /f 2>$null
+        reg delete "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ICM\ProfileAssociations" /f
     }
 
     # Disable calibration profile
