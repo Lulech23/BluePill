@@ -151,6 +151,7 @@ if ($task.contains("Install")) {
             Start-Sleep -Seconds 1
             $ready = (Get-Process "colorcpl" -ErrorAction SilentlyContinue).length
         } Until ($ready -ge 1)
+        Start-Sleep -Seconds 1
         wmic process where "name='colorcpl.exe'" delete | Out-Null
         
         # If initialization succeeded...
